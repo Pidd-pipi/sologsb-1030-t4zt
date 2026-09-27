@@ -22,6 +22,7 @@ import {
   Tooltip
 } from '@radix-ui/themes';
 import { buildVersionOptions, diffVersions } from './diff';
+import { RunPanel } from './RunPanel';
 import { useChecklistStore } from './store';
 import type { ChecklistItem, ChecklistProject, IssueLevel, ValidationIssue, WorkflowStatus } from './types';
 import { validateProject } from './validation';
@@ -68,6 +69,7 @@ function App() {
   const selectedItem = project.items.find((item) => item.id === selectedItemId);
   const versionOptions = useMemo(() => buildVersionOptions(project), [project]);
   const diffEntries = useMemo(() => diffVersions(project, leftVersion, rightVersion), [project, leftVersion, rightVersion]);
+  const runCount = useMemo(() => store.runs.filter((run) => run.projectId === project.id).length, [store.runs, project.id]);
   const filteredStages = useMemo(() => {
     const query = search.trim().toLocaleLowerCase('zh-CN');
     return project.stages
@@ -249,6 +251,7 @@ function App() {
             <Tabs.List className="main-tabs">
               <Tabs.Trigger value="editor">编辑清单</Tabs.Trigger>
               <Tabs.Trigger value="versions">版本差异 <Badge size="1" variant="soft">{project.revisions.length}</Badge></Tabs.Trigger>
+              <Tabs.Trigger value="runs">执行记录 <Badge size="1" variant="soft">{runCount}</Badge></Tabs.Trigger>
               <Tabs.Trigger value="print">打印预览</Tabs.Trigger>
             </Tabs.List>
 
@@ -430,6 +433,10 @@ function App() {
                   )) : <div className="empty-page"><strong>两个版本没有差异</strong><span>选择不同版本后可查看新增、删除和修改的检查项。</span></div>}
                 </div>
               </div>
+            </Tabs.Content>
+
+            <Tabs.Content value="runs">
+              <RunPanel project={project} store={store} />
             </Tabs.Content>
 
             <Tabs.Content value="print">

@@ -1,4 +1,4 @@
-import type { ChecklistItem, ChecklistProject, FlightStage, WorkspaceState } from './types';
+import type { ChecklistItem, ChecklistProject, ChecklistRun, FlightStage, WorkspaceState } from './types';
 
 const stages: FlightStage[] = [
   { id: 'stage-preflight', name: '飞行前检查', order: 0, description: '驾驶舱准备与飞机状态核对。' },
@@ -86,3 +86,31 @@ export const createInitialState = (): WorkspaceState => ({
   selectedProjectId: project.id,
   projects: [project]
 });
+
+export const createInitialRuns = (): ChecklistRun[] => {
+  const revision = project.revisions[0];
+  return [
+    {
+      id: 'run-sample-1',
+      projectId: project.id,
+      revisionId: revision.id,
+      revision: revision.revision,
+      revisionNote: revision.note,
+      checklistName: project.name,
+      aircraft: project.aircraft,
+      operator: '张机长',
+      note: '本场训练飞行后的例行执行记录。',
+      startedAt: '2026-09-26T08:10:00.000Z',
+      finishedAt: '2026-09-26T09:02:00.000Z',
+      stages: structuredClone(revision.stages),
+      items: structuredClone(revision.items),
+      records: revision.items.map((entry) => ({
+        itemId: entry.id,
+        result: entry.id === 'item-flaps' ? 'deviation' : 'completed',
+        reason: entry.id === 'item-flaps' ? '襟翼指示与选定构型不一致，复查确认为传感器瞬时故障。' : '',
+        handling: entry.id === 'item-flaps' ? '未进入起飞滑跑；滑回停机位检查，机务更换传感器后放行。' : '',
+        recordedAt: '2026-09-26T08:45:00.000Z'
+      }))
+    }
+  ];
+};

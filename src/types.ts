@@ -50,6 +50,33 @@ export interface WorkspaceState {
   projects: ChecklistProject[];
 }
 
+export type RunItemResult = 'completed' | 'deviation';
+
+export interface ChecklistRunRecord {
+  itemId: string;
+  result: RunItemResult | null;
+  reason: string;
+  handling: string;
+  recordedAt: string | null;
+}
+
+export interface ChecklistRun {
+  id: string;
+  projectId: string;
+  revisionId: string;
+  revision: number;
+  revisionNote: string;
+  checklistName: string;
+  aircraft: string;
+  operator: string;
+  note: string;
+  startedAt: string;
+  finishedAt: string | null;
+  stages: FlightStage[];
+  items: ChecklistItem[];
+  records: ChecklistRunRecord[];
+}
+
 export interface ValidationIssue {
   id: string;
   type: IssueType;

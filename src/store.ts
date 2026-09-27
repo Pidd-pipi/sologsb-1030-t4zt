@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { createInitialState } from './data';
-import type { ChecklistItem, ChecklistProject, ChecklistRevision, FlightStage, WorkspaceState } from './types';
+import { createInitialRuns, createInitialState } from './data';
+import { canFinishRun } from './runs';
+import type { ChecklistItem, ChecklistProject, ChecklistRevision, ChecklistRun, FlightStage, RunItemResult, WorkspaceState } from './types';
 
 const STORAGE_KEY = 'sologsb-1030-workspace-v1';
+const RUNS_KEY = 'sologsb-1030-runs-v1';
 const clone = <T>(value: T): T => structuredClone(value);
 const uid = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 const now = () => new Date().toISOString();
@@ -20,6 +22,19 @@ function loadState(): WorkspaceState {
   return createInitialState();
 }
 
+function loadRuns(): ChecklistRun[] {
+  try {
+    const saved = localStorage.getItem(RUNS_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved) as ChecklistRun[];
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch {
+    // Corrupted run log falls back to the bundled sample execution.
+  }
+  return createInitialRuns();
+}
+
 function updateSelected(state: WorkspaceState, mutator: (project: ChecklistProject) => void): WorkspaceState {
   const next = clone(state);
   const project = next.projects.find((entry) => entry.id === next.selectedProjectId);
@@ -32,6 +47,7 @@ function updateSelected(state: WorkspaceState, mutator: (project: ChecklistProje
 
 export function useChecklistStore() {
   const [state, setState] = useState<WorkspaceState>(loadState);
+  const [runs, setRuns] = useState<ChecklistRun[]>(loadRuns);
   const past = useRef<WorkspaceState[]>([]);
   const future = useRef<WorkspaceState[]>([]);
   const [, forceHistoryState] = useState(0);
@@ -39,6 +55,10 @@ export function useChecklistStore() {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [state]);
+
+  useEffect(() => {
+    localStorage.setItem(RUNS_KEY, JSON.stringify(runs));
+  }, [runs]);
 
   const commit = useCallback((mutator: (project: ChecklistProject) => void) => {
     setState((current) => {
@@ -241,9 +261,87 @@ export function useChecklistStore() {
     setState((current) => updateSelected(current, () => undefined));
   }, [state]);
 
+  // Execution runs live outside the edit/review/freeze workflow: they use their own
+  // storage key and never touch the undo history, so checklist editing is unaffected.
+  const mutateRun = useCallback((runId: string, mutator: (run: ChecklistRun) => void) => {
+    setRuns((current) => {
+      const next = clone(current);
+      const run = next.find((entry) => entry.id === runId);
+      if (run && !run.finishedAt) mutator(run);
+      return next;
+    });
+  }, []);
+
+  const startRun = useCallback((revisionId: string, operator: string, note: string): string | null => {
+    const project = state.projects.find((entry) => entry.id === state.selectedProjectId);
+    const revision = project?.revisions.find((entry) => entry.id === revisionId);
+    if (!project || !revision || !operator.trim()) return null;
+    const run: ChecklistRun = {
+      id: uid('run'),
+      projectId: project.id,
+      revisionId: revision.id,
+      revision: revision.revision,
+      revisionNote: revision.note,
+      checklistName: project.name,
+      aircraft: project.aircraft,
+      operator: operator.trim(),
+      note: note.trim(),
+      startedAt: now(),
+      finishedAt: null,
+      stages: clone(revision.stages),
+      items: clone(revision.items),
+      records: revision.items.map((item) => ({ itemId: item.id, result: null, reason: '', handling: '', recordedAt: null }))
+    };
+    setRuns((current) => [run, ...current]);
+    return run.id;
+  }, [state]);
+
+  const updateRunMeta = useCallback((runId: string, patch: Partial<Pick<ChecklistRun, 'operator' | 'note'>>) => {
+    mutateRun(runId, (run) => {
+      Object.assign(run, patch);
+    });
+  }, [mutateRun]);
+
+  const setRunItemResult = useCallback((runId: string, itemId: string, result: RunItemResult) => {
+    mutateRun(runId, (run) => {
+      const record = run.records.find((entry) => entry.itemId === itemId);
+      if (!record) return;
+      record.result = result;
+      record.recordedAt = now();
+      if (result === 'completed') {
+        record.reason = '';
+        record.handling = '';
+      }
+    });
+  }, [mutateRun]);
+
+  const setRunItemReason = useCallback((runId: string, itemId: string, reason: string) => {
+    mutateRun(runId, (run) => {
+      const record = run.records.find((entry) => entry.itemId === itemId);
+      if (record) record.reason = reason;
+    });
+  }, [mutateRun]);
+
+  const setRunItemHandling = useCallback((runId: string, itemId: string, handling: string) => {
+    mutateRun(runId, (run) => {
+      const record = run.records.find((entry) => entry.itemId === itemId);
+      if (record) record.handling = handling;
+    });
+  }, [mutateRun]);
+
+  const finishRun = useCallback((runId: string) => {
+    setRuns((current) => {
+      const next = clone(current);
+      const run = next.find((entry) => entry.id === runId);
+      if (run && canFinishRun(run)) run.finishedAt = now();
+      return next;
+    });
+  }, []);
+
   return {
     state,
     selectedProject,
+    runs,
     canUndo: past.current.length > 0,
     canRedo: future.current.length > 0,
     selectProject,
@@ -263,6 +361,14 @@ export function useChecklistStore() {
     createRevision,
     undo,
     redo,
-    saveNow
+    saveNow,
+    startRun,
+    updateRunMeta,
+    setRunItemResult,
+    setRunItemReason,
+    setRunItemHandling,
+    finishRun
   };
 }
+
+export type ChecklistStore = ReturnType<typeof useChecklistStore>;
