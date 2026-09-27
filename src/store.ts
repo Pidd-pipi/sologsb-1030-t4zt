@@ -1,11 +1,32 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createInitialState } from './data';
-import type { ChecklistItem, ChecklistProject, ChecklistRevision, FlightStage, WorkspaceState } from './types';
+import { executionItemViews, executionStats } from './execution';
+import type { ChecklistExecution, ChecklistItem, ChecklistProject, ChecklistRevision, ExecutionItemRecord, ExecutionItemStatus, FlightStage, WorkspaceState } from './types';
 
 const STORAGE_KEY = 'sologsb-1030-workspace-v1';
+const EXECUTIONS_KEY = 'sologsb-1030-executions-v1';
+const NO_EXECUTIONS: ChecklistExecution[] = [];
 const clone = <T>(value: T): T => structuredClone(value);
 const uid = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 const now = () => new Date().toISOString();
+
+interface ExecutionStoreState {
+  schemaVersion: 1;
+  byProject: Record<string, ChecklistExecution[]>;
+}
+
+function loadExecutions(): ExecutionStoreState {
+  try {
+    const saved = localStorage.getItem(EXECUTIONS_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved) as ExecutionStoreState;
+      if (parsed.schemaVersion === 1 && parsed.byProject) return parsed;
+    }
+  } catch {
+    // Corrupted execution records fall back to an empty list.
+  }
+  return { schemaVersion: 1, byProject: {} };
+}
 
 function loadState(): WorkspaceState {
   try {
@@ -62,6 +83,80 @@ export function useChecklistStore() {
   }, []);
 
   const selectedProject = state.projects.find((project) => project.id === state.selectedProjectId) ?? state.projects[0];
+
+  const [executionStore, setExecutionStore] = useState<ExecutionStoreState>(loadExecutions);
+
+  useEffect(() => {
+    localStorage.setItem(EXECUTIONS_KEY, JSON.stringify(executionStore));
+  }, [executionStore]);
+
+  const executions = executionStore.byProject[selectedProject.id] ?? NO_EXECUTIONS;
+
+  // Execution records live outside the undo history so edit/review/freeze flows stay untouched.
+  const mutateExecutions = useCallback((mutator: (list: ChecklistExecution[]) => void) => {
+    const projectId = selectedProject.id;
+    setExecutionStore((current) => {
+      const next = clone(current);
+      const list = next.byProject[projectId] ?? [];
+      mutator(list);
+      next.byProject[projectId] = list;
+      return next;
+    });
+  }, [selectedProject.id]);
+
+  const startExecution = useCallback((revision: ChecklistRevision, operator: string, summary: string) => {
+    const id = uid('execution');
+    mutateExecutions((list) => {
+      if (list.some((execution) => execution.status === 'in-progress')) return;
+      list.unshift({
+        id,
+        revisionId: revision.id,
+        revision: revision.revision,
+        operator: operator.trim(),
+        summary: summary.trim(),
+        startedAt: now(),
+        finishedAt: '',
+        status: 'in-progress',
+        records: revision.items.map((item) => ({ itemId: item.id, status: 'pending', deviationReason: '', disposition: '', recordedAt: '' }))
+      });
+    });
+    return id;
+  }, [mutateExecutions]);
+
+  const setExecutionItemStatus = useCallback((executionId: string, itemId: string, status: ExecutionItemStatus) => {
+    mutateExecutions((list) => {
+      const execution = list.find((entry) => entry.id === executionId && entry.status === 'in-progress');
+      const record = execution?.records.find((entry) => entry.itemId === itemId);
+      if (!record) return;
+      record.status = status;
+      record.recordedAt = status === 'pending' ? '' : now();
+    });
+  }, [mutateExecutions]);
+
+  const updateExecutionRecord = useCallback((executionId: string, itemId: string, patch: Partial<Pick<ExecutionItemRecord, 'deviationReason' | 'disposition'>>) => {
+    mutateExecutions((list) => {
+      const execution = list.find((entry) => entry.id === executionId && entry.status === 'in-progress');
+      const record = execution?.records.find((entry) => entry.itemId === itemId);
+      if (record) Object.assign(record, patch);
+    });
+  }, [mutateExecutions]);
+
+  const finishExecution = useCallback((project: ChecklistProject, executionId: string) => {
+    mutateExecutions((list) => {
+      const execution = list.find((entry) => entry.id === executionId && entry.status === 'in-progress');
+      if (!execution) return;
+      if (!executionStats(executionItemViews(project, execution)).canFinish) return;
+      execution.status = 'completed';
+      execution.finishedAt = now();
+    });
+  }, [mutateExecutions]);
+
+  const discardExecution = useCallback((executionId: string) => {
+    mutateExecutions((list) => {
+      const index = list.findIndex((entry) => entry.id === executionId && entry.status === 'in-progress');
+      if (index >= 0) list.splice(index, 1);
+    });
+  }, [mutateExecutions]);
 
   const selectProject = useCallback((id: string) => {
     setState((current) => ({ ...current, selectedProjectId: id }));
@@ -244,6 +339,7 @@ export function useChecklistStore() {
   return {
     state,
     selectedProject,
+    executions,
     canUndo: past.current.length > 0,
     canRedo: future.current.length > 0,
     selectProject,
@@ -261,6 +357,11 @@ export function useChecklistStore() {
     submitForReview,
     freezeRevision,
     createRevision,
+    startExecution,
+    setExecutionItemStatus,
+    updateExecutionRecord,
+    finishExecution,
+    discardExecution,
     undo,
     redo,
     saveNow

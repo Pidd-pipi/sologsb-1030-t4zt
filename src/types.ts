@@ -31,6 +31,29 @@ export interface ChecklistRevision {
   items: ChecklistItem[];
 }
 
+export type ExecutionStatus = 'in-progress' | 'completed';
+export type ExecutionItemStatus = 'pending' | 'completed' | 'deviation';
+
+export interface ExecutionItemRecord {
+  itemId: string;
+  status: ExecutionItemStatus;
+  deviationReason: string;
+  disposition: string;
+  recordedAt: string;
+}
+
+export interface ChecklistExecution {
+  id: string;
+  revisionId: string;
+  revision: number;
+  operator: string;
+  summary: string;
+  startedAt: string;
+  finishedAt: string;
+  status: ExecutionStatus;
+  records: ExecutionItemRecord[];
+}
+
 export interface ChecklistProject {
   id: string;
   name: string;

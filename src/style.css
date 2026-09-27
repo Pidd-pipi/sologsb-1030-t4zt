@@ -120,6 +120,31 @@ kbd { border: 1px solid var(--gray-a7); border-bottom-width: 2px; border-radius:
 .help-list { display: grid; gap: 12px; margin-top: 18px; }
 .help-list div { display: grid; grid-template-columns: 150px 1fr; align-items: center; gap: 12px; font-size: 12px; }
 .help-list kbd { justify-self: start; }
+.exec-start-card { display: grid; gap: 14px; margin-bottom: 22px; }
+.exec-start-grid { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(180px, 240px); gap: 12px; }
+.exec-start-grid label { display: grid; gap: 6px; align-content: start; }
+.exec-start-grid label > span { font-size: 12px; font-weight: 700; }
+.exec-start-summary { grid-column: 1 / -1; }
+.exec-progress-card { margin-bottom: 14px; }
+.exec-stage-card { padding: 0; overflow: hidden; margin-bottom: 13px; }
+.exec-stage-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 11px 13px; border-bottom: 1px solid var(--gray-a5); background: var(--gray-a2); }
+.exec-row { padding: 11px 13px; border-bottom: 1px solid var(--gray-a4); }
+.exec-row:last-child { border-bottom: 0; }
+.exec-row.status-completed { background: color-mix(in srgb, var(--green-a3) 55%, transparent); }
+.exec-row.status-deviation { background: color-mix(in srgb, var(--red-a3) 55%, transparent); }
+.exec-row-main { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+.exec-row-actions { display: flex; gap: 6px; }
+.exec-deviation-form { display: grid; gap: 8px; margin-top: 10px; }
+.exec-footer { margin-top: 14px; }
+.exec-history { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; margin: 0 0 20px; }
+.exec-history-item { display: grid; gap: 5px; justify-items: start; border: 1px solid var(--gray-a5); border-radius: 11px; padding: 10px 12px; background: var(--color-panel); color: var(--gray-12); text-align: left; cursor: pointer; }
+.exec-history-item:hover { background: var(--gray-a3); }
+.exec-history-item.active { border-color: var(--accent-a7); background: var(--accent-a3); }
+.exec-history-item small { color: var(--gray-10); font-size: 10px; }
+.exec-report-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; padding: 4px 0 14px; }
+.exec-report-meta div { display: grid; gap: 3px; }
+.exec-report-meta span { font-size: 11px; color: var(--gray-10); }
+.exec-report-summary { display: grid; gap: 4px; margin-bottom: 14px; padding: 10px 12px; border: 1px solid var(--gray-a5); border-radius: 10px; background: var(--gray-a2); }
 
 @media (max-width: 1320px) {
   .editor-grid { grid-template-columns: 210px minmax(570px, 1fr) 315px; }
@@ -127,7 +152,7 @@ kbd { border: 1px solid var(--gray-a7); border-bottom-width: 2px; border-radius:
 }
 @media print {
   body { min-width: 0; background: white; }
-  .topbar, .workflow-bar, .main-tabs, .stage-sidebar, .inspector, .list-heading, .quick-entry, .stage-list, .preview-dialog .rt-DialogTitle, .preview-dialog .rt-DialogDescription, .preview-dialog .rt-Flex { display: none !important; }
+  .topbar, .workflow-bar, .main-tabs, .stage-sidebar, .inspector, .list-heading, .quick-entry, .stage-list, .preview-dialog .rt-DialogTitle, .preview-dialog .rt-DialogDescription, .preview-dialog .rt-Flex, .exec-start-card, .exec-history, .exec-footer, .exec-progress-card, .exec-report-actions { display: none !important; }
   .workspace { padding: 0; }
   .content-page { max-width: none; padding: 0; }
   .print-sheet { border: 0; box-shadow: none; border-radius: 0; padding: 0; }
